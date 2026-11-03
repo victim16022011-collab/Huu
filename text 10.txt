@@ -1,0 +1,1047 @@
+-- ==============================================================================
+-- 🐉 DRAGON HUB - BLOX FRUITS SEA 3 EDITION (FIXED TWEEN & AUTO LEVEL) 🐉
+-- Tác giả: HUYKOGIAUVN
+-- ==============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local StarterGui = game:GetService("StarterGui")
+local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ==============================================================================
+-- 1. CẤU HÌNH BIẾN TOÀN CỤC (GLOBAL CONFIG)
+-- ==============================================================================
+getgenv().DragonHub = {
+    AutoFarmLevel = false,
+    AutoFarmMob = false,
+    SelectedMob = "Grand Devotee",
+    AutoFarmBoss = false,
+    SelectedBoss = "Longma",
+    WeaponType = "Melee",
+    FarmDistance = 30,
+    TweenSpeed = 300,
+    BringMob = true,
+    AttackAura = false,
+    AutoBuso = true,
+    AutoRaceV3 = false,
+    AutoAwakening = false,
+    -- Dragon & Sea Events
+    AutoDragonHunter = false,
+    AutoDragonEmber = false,
+    AutoKitsunePray = false,
+    AutoCollectBerries = false,
+    AutoGrabFruits = false,
+    AutoFirePrompts = false,
+    -- Stats
+    AutoStatsMelee = false,
+    AutoStatsDefense = false,
+    AutoStatsSword = false,
+    AutoStatsGun = false,
+    AutoStatsFruit = false,
+    -- ESP
+    EspPlayers = false,
+    EspMobs = false,
+    EspFruits = false
+}
+
+-- Dữ liệu Tọa độ Quái & Boss Sea 3
+local MobDatabase = {
+    ["Grand Devotee"] = { Level = 2725, Pos = CFrame.new(9620.5, -1994.2, 9871.7) },
+    ["High Disciple"] = { Level = 2700, Pos = CFrame.new(9778.4, -1994.3, 9877.0) },
+    ["Ocean Prophet"] = { Level = 2675, Pos = CFrame.new(11129.8, -2008.9, 10051.5) },
+    ["Jack o' Lantern"] = { Level = 2825, Pos = CFrame.new(-12486.4, 334.6, -7440.8) },
+    ["Mythological Pirate"] = { Level = 1850, Pos = CFrame.new(-13456.0, 468.5, -7040.0) },
+    ["Forest Pirate"] = { Level = 1825, Pos = CFrame.new(-13345.5, 331.3, -7630.8) }
+}
+
+local BossDatabase = {
+    ["Longma"] = CFrame.new(-10156.2, 331.6, -9445.9),
+    ["Stone"] = CFrame.new(-1109.9, 51.6, 6811.7),
+    ["Urban"] = CFrame.new(4486.7, 1208.3, -8.9),
+    ["indra"] = CFrame.new(-12483.6, 332.1, -7769.2)
+}
+
+local NPCDatabase = {
+    { Name = "Blox Fruit Gacha (Random Trái)", Pos = CFrame.new(-12488.7, 336.3, -7445.8) },
+    { Name = "Blox Fruit Dealer (Cửa Hàng Trái)", Pos = CFrame.new(-12510.5, 335.6, -7441.7) },
+    { Name = "Set Home Point (Lưu Điểm Hồi Sinh)", Pos = CFrame.new(-12551.0, 336.3, -7409.5) },
+    { Name = "Barista (Pha Chế Cafe)", Pos = CFrame.new(-12460.0, 337.0, -7431.8) },
+    { Name = "Awakenings Expert (Thức Tỉnh)", Pos = CFrame.new(-12646.3, 374.3, -7557.4) },
+    { Name = "Titles Specialist (Danh Hiệu)", Pos = CFrame.new(-12655.8, 336.3, -7518.7) },
+    { Name = "Bounty/Honor Expert (Điểm Thưởng)", Pos = CFrame.new(-12646.1, 374.0, -7492.6) },
+    { Name = "Nerd (Thông Tin Phụ Kiện)", Pos = CFrame.new(-12455.1, 374.0, -7522.8) },
+    { Name = "tort (Đổi Điểm Chỉ Số)", Pos = CFrame.new(-12485.2, 336.3, -7565.1) },
+    { Name = "Witch (Phù Thủy Sự Kiện)", Pos = CFrame.new(-12517.9, 331.9, -7613.7) },
+    { Name = "Citizen (Nhiệm Vụ Công Dân)", Pos = CFrame.new(-12441.6, 330.8, -7676.2) },
+    { Name = "Indra (NPC Sự Kiện)", Pos = CFrame.new(-12483.6, 332.1, -7769.2) },
+    { Name = "Pirate Recruiter (Hải Tặc)", Pos = CFrame.new(-12259.0, 331.1, -7399.9) },
+    { Name = "Marine Recruiter (Hải Quân)", Pos = CFrame.new(-12798.6, 331.1, -7699.2) }
+}
+
+-- Chống AFK
+LocalPlayer.Idled:Connect(function()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end)
+
+local function Notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "🐉 " .. tostring(title),
+            Text = tostring(text),
+            Duration = duration or 3
+        })
+    end)
+end
+
+-- ==============================================================================
+-- 2. HỆ THỐNG KẾT NỐI REMOTE
+-- ==============================================================================
+local RemotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
+local ModulesFolder = ReplicatedStorage:FindFirstChild("Modules")
+local NetFolder = ModulesFolder and ModulesFolder:FindFirstChild("Net")
+
+local CommF_ = RemotesFolder and RemotesFolder:FindFirstChild("CommF_")
+local CommE = RemotesFolder and RemotesFolder:FindFirstChild("CommE")
+local RedeemRemote = RemotesFolder and RemotesFolder:FindFirstChild("Redeem")
+local DracoTrialRemote = RemotesFolder and RemotesFolder:FindFirstChild("DracoTrial")
+
+local RegisterAttack = NetFolder and NetFolder:FindFirstChild("RE/RegisterAttack")
+local RegisterHit = NetFolder and NetFolder:FindFirstChild("RE/RegisterHit")
+local SpinGachaRemote = NetFolder and NetFolder:FindFirstChild("RE/SpinGacha")
+local DragonDojoEmber = NetFolder and NetFolder:FindFirstChild("RE/DragonDojoEmber")
+local CollectedDragonEgg = NetFolder and NetFolder:FindFirstChild("RE/CollectedDragonEgg")
+local TouchKitsuneStatue = NetFolder and NetFolder:FindFirstChild("RE/TouchKitsuneStatue")
+local CollectBlueEmber = NetFolder and NetFolder:FindFirstChild("RE/CollectBlueEmber")
+
+local DragonHunterRF = NetFolder and NetFolder:FindFirstChild("RF/DragonHunter")
+local KitsuneStatuePrayRF = NetFolder and NetFolder:FindFirstChild("RF/KitsuneStatuePray")
+local ClaimBerryRF = NetFolder and NetFolder:FindFirstChild("RF/ClaimBerry")
+local DungeonNPCRF = NetFolder and NetFolder:FindFirstChild("RF/DungeonNPCNetworkFunction")
+
+-- ==============================================================================
+-- 3. HỆ THỐNG TWEEN ĐÃ FIX TRIỆT ĐỂ LỖI GIẬT VỀ CHỖ CŨ (ANTI-RUBBERBAND)
+-- ==============================================================================
+local ActiveTween = nil
+local TweenConnection = nil
+
+local function StopCurrentTween()
+    if ActiveTween then
+        pcall(function()
+            ActiveTween:Cancel()
+        end)
+        ActiveTween = nil
+    end
+    if TweenConnection then
+        TweenConnection:Disconnect()
+        TweenConnection = nil
+    end
+end
+
+-- Hàm bay mượt không bị giật lùi vị trí
+local function TweenTo(targetCFrame)
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        local distance = (hrp.Position - targetCFrame.Position).Magnitude
+        if distance <= 15 then
+            hrp.CFrame = targetCFrame
+            return
+        end
+
+        -- Nếu đang có tween chạy hoặc bị gián đoạn, hủy cái cũ để tạo luồng mới chính xác
+        if ActiveTween then
+            return 
+        end
+
+        local speed = getgenv().DragonHub.TweenSpeed or 300
+        local tweenTime = distance / speed
+        local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+
+        ActiveTween = TweenService:Create(hrp, tweenInfo, { CFrame = targetCFrame })
+        
+        -- Khóa vận tốc chống server anti-cheat kéo giật về chỗ cũ
+        TweenConnection = RunService.Heartbeat:Connect(function()
+            if hrp then
+                hrp.Velocity = Vector3.new(0, 0, 0)
+            end
+        end)
+
+        ActiveTween:Play()
+        ActiveTween.Completed:Connect(function()
+            if TweenConnection then
+                TweenConnection:Disconnect()
+                TweenConnection = nil
+            end
+            ActiveTween = nil
+        end)
+    end)
+end
+
+-- Hàm cầm vũ khí
+local function EquipSelectedWeapon()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if not char or not hum or not backpack then return end
+
+        local desiredType = getgenv().DragonHub.WeaponType
+        local currentTool = char:FindFirstChildOfClass("Tool")
+        if currentTool then
+            local wType = currentTool:GetAttribute("WeaponType") or currentTool.ToolTip
+            if wType == desiredType then return end
+        end
+
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local wType = item:GetAttribute("WeaponType") or item.ToolTip
+                if wType == desiredType then
+                    hum:EquipTool(item)
+                    break
+                end
+            end
+        end
+    end)
+end
+
+local function CheckAndEnableBuso()
+    if not getgenv().DragonHub.AutoBuso then return end
+    pcall(function()
+        local char = LocalPlayer.Character
+        if char and not char:GetAttribute("BusoEnabled") and not char:FindFirstChild("HasBuso") then
+            if CommF_ then CommF_:InvokeServer("Buso") end
+        end
+    end)
+end
+
+local function PerformFastAttack()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        local enemiesFolder = Workspace:FindFirstChild("Enemies")
+        local primaryTargetPart = nil
+        local hitTable = {}
+
+        if enemiesFolder then
+            for _, mob in ipairs(enemiesFolder:GetChildren()) do
+                local mobHrp = mob:FindFirstChild("HumanoidRootPart")
+                local mobHum = mob:FindFirstChildOfClass("Humanoid")
+                if mobHrp and mobHum and mobHum.Health > 0 then
+                    if (mobHrp.Position - hrp.Position).Magnitude <= 65 then
+                        if not primaryTargetPart then
+                            primaryTargetPart = mobHrp
+                        else
+                            table.insert(hitTable, { mob, mobHrp })
+                        end
+                    end
+                end
+            end
+        end
+
+        if primaryTargetPart then
+            if RegisterAttack and RegisterHit then
+                RegisterAttack:FireServer(0)
+                RegisterHit:FireServer(primaryTargetPart, hitTable)
+            end
+            local heldTool = char:FindFirstChildOfClass("Tool")
+            if heldTool then
+                local leftClick = heldTool:FindFirstChild("LeftClickRemote")
+                if leftClick and leftClick:IsA("RemoteEvent") then
+                    leftClick:FireServer(Vector3.new(0.01, -500, 0.01), 1, true)
+                    leftClick:FireServer(false)
+                end
+            end
+        end
+    end)
+end
+
+local function BringNearbyMobs(targetName, targetCFrame)
+    if not getgenv().DragonHub.BringMob then return end
+    pcall(function()
+        if sethiddenproperty then
+            sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+        end
+        local enemiesFolder = Workspace:FindFirstChild("Enemies")
+        if not enemiesFolder then return end
+
+        for _, mob in ipairs(enemiesFolder:GetChildren()) do
+            if mob.Name == targetName then
+                local mobHrp = mob:FindFirstChild("HumanoidRootPart")
+                local mobHum = mob:FindFirstChildOfClass("Humanoid")
+                if mobHrp and mobHum and mobHum.Health > 0 then
+                    if (mobHrp.Position - targetCFrame.Position).Magnitude <= 300 then
+                        mobHrp.CFrame = targetCFrame
+                        mobHrp.CanCollide = false
+                        mobHum.WalkSpeed = 0
+                        mobHum.JumpPower = 0
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ==============================================================================
+-- 4. GIAO DIỆN DRAGON HUB (NATIVE UI)
+-- ==============================================================================
+local function GetSafeGuiHost()
+    local ok, host = pcall(function()
+        return (gethui and gethui()) or CoreGui
+    end)
+    if ok and host then return host end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local GuiHost = GetSafeGuiHost()
+if GuiHost:FindFirstChild("DragonHub_MainGUI") then
+    GuiHost.DragonHub_MainGUI:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DragonHub_MainGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = GuiHost
+
+local OpenButton = Instance.new("TextButton")
+OpenButton.Name = "DragonToggleBtn"
+OpenButton.Parent = ScreenGui
+OpenButton.Size = UDim2.new(0, 140, 0, 42)
+OpenButton.Position = UDim2.new(0, 20, 0.2, 0)
+OpenButton.BackgroundColor3 = Color3.fromRGB(28, 12, 12)
+OpenButton.Font = Enum.Font.GothamBlack
+OpenButton.Text = "🐉 DRAGON HUB"
+OpenButton.TextColor3 = Color3.fromRGB(255, 195, 50)
+OpenButton.TextSize = 14
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0, 10)
+
+local OpenStroke = Instance.new("UIStroke")
+OpenStroke.Color = Color3.fromRGB(220, 40, 40)
+OpenStroke.Thickness = 2
+OpenStroke.Parent = OpenButton
+
+local MainWindow = Instance.new("Frame")
+MainWindow.Name = "MainWindow"
+MainWindow.Parent = ScreenGui
+MainWindow.Size = UDim2.new(0, 620, 0, 410)
+MainWindow.Position = UDim2.new(0.5, -310, 0.5, -205)
+MainWindow.BackgroundColor3 = Color3.fromRGB(16, 12, 14)
+MainWindow.BorderSizePixel = 0
+MainWindow.ClipsDescendants = true
+Instance.new("UICorner", MainWindow).CornerRadius = UDim.new(0, 12)
+
+local WindowStroke = Instance.new("UIStroke")
+WindowStroke.Color = Color3.fromRGB(220, 45, 45)
+WindowStroke.Thickness = 2
+WindowStroke.Parent = MainWindow
+
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Parent = MainWindow
+TopBar.Size = UDim2.new(1, 0, 0, 44)
+TopBar.BackgroundColor3 = Color3.fromRGB(30, 14, 16)
+TopBar.BorderSizePixel = 0
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 12)
+
+local TopTitle = Instance.new("TextLabel")
+TopTitle.Parent = TopBar
+TopTitle.Size = UDim2.new(1, -120, 1, 0)
+TopTitle.Position = UDim2.new(0, 16, 0, 0)
+TopTitle.BackgroundTransparency = 1
+TopTitle.Font = Enum.Font.GothamBlack
+TopTitle.Text = "🐉 DRAGON HUB  |  FIXED TWEEN & AUTO LEVEL"
+TopTitle.TextColor3 = Color3.fromRGB(255, 200, 60)
+TopTitle.TextSize = 15
+TopTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local HideBtn = Instance.new("TextButton")
+HideBtn.Parent = TopBar
+HideBtn.Size = UDim2.new(0, 32, 0, 28)
+HideBtn.Position = UDim2.new(1, -76, 0.5, -14)
+HideBtn.BackgroundColor3 = Color3.fromRGB(55, 25, 25)
+HideBtn.Font = Enum.Font.GothamBold
+HideBtn.Text = "-"
+HideBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HideBtn.TextSize = 18
+Instance.new("UICorner", HideBtn).CornerRadius = UDim.new(0, 6)
+
+local DestroyBtn = Instance.new("TextButton")
+DestroyBtn.Parent = TopBar
+DestroyBtn.Size = UDim2.new(0, 32, 0, 28)
+DestroyBtn.Position = UDim2.new(1, -38, 0.5, -14)
+DestroyBtn.BackgroundColor3 = Color3.fromRGB(180, 35, 35)
+DestroyBtn.Font = Enum.Font.GothamBold
+DestroyBtn.Text = "X"
+DestroyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DestroyBtn.TextSize = 14
+Instance.new("UICorner", DestroyBtn).CornerRadius = UDim.new(0, 6)
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Parent = MainWindow
+Sidebar.Size = UDim2.new(0, 165, 1, -54)
+Sidebar.Position = UDim2.new(0, 8, 0, 48)
+Sidebar.BackgroundColor3 = Color3.fromRGB(22, 16, 18)
+Sidebar.BorderSizePixel = 0
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 8)
+
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.Parent = Sidebar
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Padding = UDim.new(0, 6)
+
+local SidebarPadding = Instance.new("UIPadding")
+SidebarPadding.Parent = Sidebar
+SidebarPadding.PaddingTop = UDim.new(0, 8)
+SidebarPadding.PaddingLeft = UDim.new(0, 8)
+SidebarPadding.PaddingRight = UDim.new(0, 8)
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Parent = MainWindow
+ContentArea.Size = UDim2.new(1, -189, 1, -54)
+ContentArea.Position = UDim2.new(0, 181, 0, 48)
+ContentArea.BackgroundColor3 = Color3.fromRGB(20, 15, 17)
+ContentArea.BorderSizePixel = 0
+Instance.new("UICorner", ContentArea).CornerRadius = UDim.new(0, 8)
+
+local function EnableDragging(handle, window)
+    local dragging, dragInput, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = window.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            window.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+EnableDragging(TopBar, MainWindow)
+EnableDragging(OpenButton, OpenButton)
+
+OpenButton.MouseButton1Click:Connect(function() MainWindow.Visible = not MainWindow.Visible end)
+HideBtn.MouseButton1Click:Connect(function() MainWindow.Visible = false end)
+DestroyBtn.MouseButton1Click:Connect(function()
+    StopCurrentTween()
+    ScreenGui:Destroy()
+end)
+
+local AllTabs = {}
+local function CreateTab(tabName)
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Parent = Sidebar
+    TabBtn.Size = UDim2.new(1, 0, 0, 36)
+    TabBtn.BackgroundColor3 = Color3.fromRGB(32, 22, 25)
+    TabBtn.Font = Enum.Font.GothamBold
+    TabBtn.Text = tabName
+    TabBtn.TextColor3 = Color3.fromRGB(200, 185, 185)
+    TabBtn.TextSize = 13
+    Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
+
+    local BtnStroke = Instance.new("UIStroke")
+    BtnStroke.Color = Color3.fromRGB(90, 35, 35)
+    BtnStroke.Thickness = 1
+    BtnStroke.Parent = TabBtn
+
+    local Page = Instance.new("ScrollingFrame")
+    Page.Parent = ContentArea
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.BorderSizePixel = 0
+    Page.ScrollBarThickness = 4
+    Page.ScrollBarImageColor3 = Color3.fromRGB(220, 50, 50)
+    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Page.Visible = false
+
+    local PageLayout = Instance.new("UIListLayout")
+    PageLayout.Parent = Page
+    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    PageLayout.Padding = UDim.new(0, 8)
+
+    local PagePad = Instance.new("UIPadding")
+    PagePad.Parent = Page
+    PagePad.PaddingTop = UDim.new(0, 10)
+    PagePad.PaddingBottom = UDim.new(0, 12)
+    PagePad.PaddingLeft = UDim.new(0, 10)
+    PagePad.PaddingRight = UDim.new(0, 10)
+
+    table.insert(AllTabs, { Button = TabBtn, Stroke = BtnStroke, Page = Page })
+
+    TabBtn.MouseButton1Click:Connect(function()
+        for _, t in ipairs(AllTabs) do
+            t.Page.Visible = false
+            t.Button.BackgroundColor3 = Color3.fromRGB(32, 22, 25)
+            t.Button.TextColor3 = Color3.fromRGB(200, 185, 185)
+            t.Stroke.Color = Color3.fromRGB(90, 35, 35)
+        end
+        Page.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(165, 30, 35)
+        TabBtn.TextColor3 = Color3.fromRGB(255, 225, 100)
+        BtnStroke.Color = Color3.fromRGB(255, 190, 50)
+    end)
+
+    if #AllTabs == 1 then
+        Page.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(165, 30, 35)
+        TabBtn.TextColor3 = Color3.fromRGB(255, 225, 100)
+        BtnStroke.Color = Color3.fromRGB(255, 190, 50)
+    end
+
+    return Page
+end
+
+local function AddSection(page, title)
+    local SecLabel = Instance.new("TextLabel")
+    SecLabel.Parent = page
+    SecLabel.Size = UDim2.new(1, 0, 0, 24)
+    SecLabel.BackgroundTransparency = 1
+    SecLabel.Font = Enum.Font.GothamBlack
+    SecLabel.Text = "🔥 " .. tostring(title)
+    SecLabel.TextColor3 = Color3.fromRGB(255, 185, 55)
+    SecLabel.TextSize = 13
+    SecLabel.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+local function AddToggle(page, title, desc, defaultVal, callback)
+    local Row = Instance.new("Frame")
+    Row.Parent = page
+    Row.Size = UDim2.new(1, 0, 0, 48)
+    Row.BackgroundColor3 = Color3.fromRGB(28, 20, 23)
+    Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 8)
+
+    local RowStroke = Instance.new("UIStroke")
+    RowStroke.Color = Color3.fromRGB(70, 35, 40)
+    RowStroke.Thickness = 1
+    RowStroke.Parent = Row
+
+    local TitleLbl = Instance.new("TextLabel")
+    TitleLbl.Parent = Row
+    TitleLbl.Size = UDim2.new(1, -80, 0, 22)
+    TitleLbl.Position = UDim2.new(0, 12, 0, 5)
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Font = Enum.Font.GothamBold
+    TitleLbl.Text = title
+    TitleLbl.TextColor3 = Color3.fromRGB(245, 245, 245)
+    TitleLbl.TextSize = 13
+    TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local DescLbl = Instance.new("TextLabel")
+    DescLbl.Parent = Row
+    DescLbl.Size = UDim2.new(1, -80, 0, 16)
+    DescLbl.Position = UDim2.new(0, 12, 0, 26)
+    DescLbl.BackgroundTransparency = 1
+    DescLbl.Font = Enum.Font.Gotham
+    DescLbl.Text = desc
+    DescLbl.TextColor3 = Color3.fromRGB(165, 150, 155)
+    DescLbl.TextSize = 11
+    DescLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local StateBtn = Instance.new("TextButton")
+    StateBtn.Parent = Row
+    StateBtn.Size = UDim2.new(0, 54, 0, 26)
+    StateBtn.Position = UDim2.new(1, -64, 0.5, -13)
+    StateBtn.Font = Enum.Font.GothamBold
+    StateBtn.TextSize = 12
+    Instance.new("UICorner", StateBtn).CornerRadius = UDim.new(0, 6)
+
+    local state = defaultVal or false
+    local function RefreshToggleUI()
+        if state then
+            StateBtn.BackgroundColor3 = Color3.fromRGB(210, 40, 45)
+            StateBtn.Text = "BẬT"
+            StateBtn.TextColor3 = Color3.fromRGB(255, 235, 120)
+            RowStroke.Color = Color3.fromRGB(210, 50, 50)
+        else
+            StateBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 38)
+            StateBtn.Text = "TẮT"
+            StateBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
+            RowStroke.Color = Color3.fromRGB(70, 35, 40)
+        end
+    end
+    RefreshToggleUI()
+
+    StateBtn.MouseButton1Click:Connect(function()
+        state = not state
+        RefreshToggleUI()
+        if callback then task.spawn(callback, state) end
+    end)
+end
+
+local function AddSelector(page, title, optionsList, defaultIndex, callback)
+    local Row = Instance.new("Frame")
+    Row.Parent = page
+    Row.Size = UDim2.new(1, 0, 0, 44)
+    Row.BackgroundColor3 = Color3.fromRGB(28, 20, 23)
+    Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 8)
+
+    local RowStroke = Instance.new("UIStroke")
+    RowStroke.Color = Color3.fromRGB(85, 45, 45)
+    RowStroke.Thickness = 1
+    RowStroke.Parent = Row
+
+    local TitleLbl = Instance.new("TextLabel")
+    TitleLbl.Parent = Row
+    TitleLbl.Size = UDim2.new(0.48, 0, 1, 0)
+    TitleLbl.Position = UDim2.new(0, 12, 0, 0)
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Font = Enum.Font.GothamBold
+    TitleLbl.Text = title
+    TitleLbl.TextColor3 = Color3.fromRGB(240, 240, 240)
+    TitleLbl.TextSize = 13
+    TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local CycleBtn = Instance.new("TextButton")
+    CycleBtn.Parent = Row
+    CycleBtn.Size = UDim2.new(0.48, -16, 0, 28)
+    CycleBtn.Position = UDim2.new(0.52, 4, 0.5, -14)
+    CycleBtn.BackgroundColor3 = Color3.fromRGB(50, 26, 30)
+    CycleBtn.Font = Enum.Font.GothamBold
+    CycleBtn.TextColor3 = Color3.fromRGB(255, 205, 70)
+    CycleBtn.TextSize = 12
+    Instance.new("UICorner", CycleBtn).CornerRadius = UDim.new(0, 6)
+
+    local idx = defaultIndex or 1
+    CycleBtn.Text = "◀ " .. tostring(optionsList[idx]) .. " ▶"
+
+    CycleBtn.MouseButton1Click:Connect(function()
+        idx = idx + 1
+        if idx > #optionsList then idx = 1 end
+        local chosen = optionsList[idx]
+        CycleBtn.Text = "◀ " .. tostring(chosen) .. " ▶"
+        if callback then task.spawn(callback, chosen) end
+    end)
+end
+
+local function AddButton(page, title, desc, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Parent = page
+    Btn.Size = UDim2.new(1, 0, 0, 42)
+    Btn.BackgroundColor3 = Color3.fromRGB(45, 22, 26)
+    Btn.Font = Enum.Font.GothamBold
+    Btn.Text = "⚡ " .. tostring(title) .. "  —  " .. tostring(desc)
+    Btn.TextColor3 = Color3.fromRGB(255, 215, 110)
+    Btn.TextSize = 12
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
+
+    Btn.MouseButton1Click:Connect(function()
+        if callback then task.spawn(callback) end
+    end)
+end
+
+-- ==============================================================================
+-- 5. KHỞI TẠO 5 TAB CHỨC NĂNG
+-- ==============================================================================
+local TabFarm = CreateTab("⚔️ Auto Farm")
+local TabDragon = CreateTab("🐉 Dragon & Event")
+local TabTeleport = CreateTab("🧭 Dịch Chuyển")
+local TabItems = CreateTab("🍎 Trái & Vật Phẩm")
+local TabEspMisc = CreateTab("👁️ ESP & Hệ Thống")
+
+-- ------------------------------------------------------------------------------
+-- TAB 1: AUTO FARM & LEVEL
+-- ------------------------------------------------------------------------------
+AddSection(TabFarm, "Cấu Hình Vũ Khí & Tấn Công")
+
+AddSelector(TabFarm, "Chọn Loại Vũ Khí:", { "Melee", "Sword", "Demon Fruit", "Gun" }, 1, function(val)
+    getgenv().DragonHub.WeaponType = val
+    Notify("Vũ Khí", "Đã chọn nhánh vũ khí: " .. val, 2)
+end)
+
+AddToggle(TabFarm, "Fast Attack Aura", "Tự động tấn công quái xung quanh", false, function(state)
+    getgenv().DragonHub.AttackAura = state
+end)
+
+AddToggle(TabFarm, "Tự Động Gom Quái (Bring Mob)", "Hút toàn bộ quái cùng tên lại 1 điểm khi farm", true, function(state)
+    getgenv().DragonHub.BringMob = state
+end)
+
+AddToggle(TabFarm, "Tự Động Bật Haki Buso", "Luôn kích hoạt Haki khi chiến đấu", true, function(state)
+    getgenv().DragonHub.AutoBuso = state
+end)
+
+AddSection(TabFarm, "Auto Farm Level (Theo Nhiệm Vụ Quest Chuẩn Sea 3)")
+
+AddToggle(TabFarm, "Bật Auto Farm Level", "Tự động nhận quest, bay đến quái, đánh hoàn thành và lặp lại", false, function(state)
+    getgenv().DragonHub.AutoFarmLevel = state
+    if not state then StopCurrentTween() end
+end)
+
+AddSection(TabFarm, "Auto Farm Quái Chỉ Định")
+
+AddSelector(TabFarm, "Chọn Quái Cần Farm:", { "Grand Devotee", "High Disciple", "Ocean Prophet", "Jack o' Lantern", "Mythological Pirate", "Forest Pirate" }, 1, function(val)
+    getgenv().DragonHub.SelectedMob = val
+end)
+
+AddToggle(TabFarm, "Bật Auto Farm Quái", "Tự động farm bãi quái chọn sẵn", false, function(state)
+    getgenv().DragonHub.AutoFarmMob = state
+    if not state then StopCurrentTween() end
+end)
+
+AddSection(TabFarm, "Auto Săn Boss (Longma, Stone, Urban, Indra)")
+
+AddSelector(TabFarm, "Chọn Boss Cần Săn:", { "Longma", "Stone", "Urban", "indra" }, 1, function(val)
+    getgenv().DragonHub.SelectedBoss = val
+end)
+
+AddToggle(TabFarm, "Bật Auto Săn Boss", "Tự động bay đến vị trí Boss và tiêu diệt", false, function(state)
+    getgenv().DragonHub.AutoFarmBoss = state
+    if not state then StopCurrentTween() end
+end)
+
+-- ------------------------------------------------------------------------------
+-- TAB 2: DRAGON & SỰ KIỆN
+-- ------------------------------------------------------------------------------
+AddSection(TabDragon, "Võ Đường Rồng & Săn Lùng")
+
+AddToggle(TabDragon, "Auto Nhận Quest Dragon Hunter", "Gọi RF/DragonHunter liên tục", false, function(state)
+    getgenv().DragonHub.AutoDragonHunter = state
+end)
+
+AddToggle(TabDragon, "Auto Thu Thập Ember & Trứng Rồng", "Gọi RE/DragonDojoEmber và RE/CollectedDragonEgg", false, function(state)
+    getgenv().DragonHub.AutoDragonEmber = state
+end)
+
+AddButton(TabDragon, "Kích Hoạt Draco Trial", "Gọi Remotes.DracoTrial:InvokeServer()", function()
+    if DracoTrialRemote then pcall(function() DracoTrialRemote:InvokeServer() end) end
+end)
+
+AddSection(TabDragon, "Đảo Kitsune & Trăng Xanh")
+
+AddToggle(TabDragon, "Auto Cầu Nguyện Tượng Kitsune", "Gọi RF/KitsuneStatuePray và RE/CollectBlueEmber", false, function(state)
+    getgenv().DragonHub.AutoKitsunePray = state
+end)
+
+AddSection(TabDragon, "Tộc V3, V4 & Lễ Hội")
+
+AddToggle(TabDragon, "Auto Bật Tộc V3", "Gọi Remotes.CommE", false, function(state)
+    getgenv().DragonHub.AutoRaceV3 = state
+end)
+
+AddToggle(TabDragon, "Auto Kích Hoạt Tộc V4 (Awakening)", "Bật Awakening.RemoteEvent", false, function(state)
+    getgenv().DragonHub.AutoAwakening = state
+end)
+
+-- ------------------------------------------------------------------------------
+-- TAB 3: DỊCH CHUYỂN
+-- ------------------------------------------------------------------------------
+AddSection(TabTeleport, "Dịch Chuyển Nhanh")
+
+AddButton(TabTeleport, "Vào Sảnh Dungeon Hub", "Dịch chuyển bằng DungeonNPCRF", function()
+    if DungeonNPCRF then pcall(function() DungeonNPCRF:InvokeServer("TeleportToDungeonHub", false) end) end
+end)
+
+AddButton(TabTeleport, "Dừng Bay Ngay (Stop Tween)", "Hủy lệnh bay hiện tại", function()
+    StopCurrentTween()
+    Notify("Dịch Chuyển", "Đã dừng bay!", 2)
+end)
+
+AddSection(TabTeleport, "Dịch Chuyển Tới 14 NPC Quan Trọng (Sea 3)")
+for _, npc in ipairs(NPCDatabase) do
+    AddButton(TabTeleport, npc.Name, string.format("(%.0f, %.0f, %.0f)", npc.Pos.X, npc.Pos.Y, npc.Pos.Z), function()
+        TweenTo(npc.Pos)
+    end)
+end
+
+-- ------------------------------------------------------------------------------
+-- TAB 4: TRÁI ÁC QUỶ & VẬT PHẨM
+-- ------------------------------------------------------------------------------
+AddSection(TabItems, "Trái Ác Quỷ")
+
+AddButton(TabItems, "Random Trái Ác Quỷ (Gacha)", "Mua trái từ Cousin / SpinGacha", function()
+    pcall(function()
+        if CommF_ then CommF_:InvokeServer("Cousin", "Buy") end
+        if SpinGachaRemote then SpinGachaRemote:FireServer() end
+    end)
+end)
+
+AddToggle(TabItems, "Auto Nhặt Trái / Táo / Dứa Rơi", "Tự hút các loại item trên bản đồ về người", false, function(state)
+    getgenv().DragonHub.AutoGrabFruits = state
+end)
+
+AddToggle(TabItems, "Auto Thu Hoạch Quả Mọng (Berry)", "Gọi RF/ClaimBerry", false, function(state)
+    getgenv().DragonHub.AutoCollectBerries = state
+end)
+
+AddToggle(TabItems, "Auto Bấm Phím E (ProximityPrompt)", "Tự động kích hoạt các nút gạt/mở cửa ở gần", false, function(state)
+    getgenv().DragonHub.AutoFirePrompts = state
+end)
+
+-- ------------------------------------------------------------------------------
+-- TAB 5: ESP & HỆ THỐNG
+-- ------------------------------------------------------------------------------
+AddSection(TabEspMisc, "Định Vị Xuyên Tường (ESP)")
+
+AddToggle(TabEspMisc, "ESP Người Chơi", "Hiển thị tên, máu, khoảng cách player", false, function(state)
+    getgenv().DragonHub.EspPlayers = state
+end)
+
+AddToggle(TabEspMisc, "ESP Quái & Boss", "Hiển thị thông tin quái vật", false, function(state)
+    getgenv().DragonHub.EspMobs = state
+end)
+
+AddToggle(TabEspMisc, "ESP Trái Ác Quỷ", "Định vị trái cây trên map", false, function(state)
+    getgenv().DragonHub.EspFruits = state
+end)
+
+AddSection(TabEspMisc, "Cập Nhật Chỉ Số (Auto Stats)")
+AddToggle(TabEspMisc, "Auto Melee", "", false, function(s) getgenv().DragonHub.AutoStatsMelee = s end)
+AddToggle(TabEspMisc, "Auto Defense", "", false, function(s) getgenv().DragonHub.AutoStatsDefense = s end)
+AddToggle(TabEspMisc, "Auto Sword", "", false, function(s) getgenv().DragonHub.AutoStatsSword = s end)
+AddToggle(TabEspMisc, "Auto Gun", "", false, function(s) getgenv().DragonHub.AutoStatsGun = s end)
+AddToggle(TabEspMisc, "Auto Demon Fruit", "", false, function(s) getgenv().DragonHub.AutoStatsFruit = s end)
+
+AddSection(TabEspMisc, "Tiện Ích")
+AddButton(TabEspMisc, "Nhập Code X2 EXP", "Redeem toàn bộ mã code", function()
+    local codes = {"KITTGAMING", "ENYU_IS_PRO", "FUDD10", "BIGNEWS", "THEGREATACE", "SUB2GAMERROBOT_EXP1"}
+    if RedeemRemote then
+        for _, c in ipairs(codes) do pcall(function() RedeemRemote:InvokeServer(c) end) task.wait(0.1) end
+        Notify("Code", "Đã nhập xong code thưởng!", 3)
+    end
+end)
+
+AddButton(TabEspMisc, "Tối Ưu Giảm Lag (FPS Boost)", "Chuyển vật liệu sang nhựa mịn", function()
+    pcall(function()
+        game:GetService("Lighting").GlobalShadows = false
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then obj.Material = Enum.Material.SmoothPlastic obj.Reflectance = 0
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency = 1 end
+        end
+    end)
+    Notify("FPS Boost", "Đã giảm lag thành công!", 2)
+end)
+
+-- ==============================================================================
+-- 6. CÁC VÒNG LẶP XỬ LÝ (LOOPS) & AUTO FARM LEVEL CHUẨN SEA 3
+-- ==============================================================================
+
+-- Noclip chống kẹt khi bay
+RunService.Stepped:Connect(function()
+    if getgenv().DragonHub.AutoFarmLevel or getgenv().DragonHub.AutoFarmMob or getgenv().DragonHub.AutoFarmBoss then
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Fast Attack
+task.spawn(function()
+    while task.wait(0.12) do
+        if getgenv().DragonHub.AttackAura or getgenv().DragonHub.AutoFarmLevel or getgenv().DragonHub.AutoFarmMob or getgenv().DragonHub.AutoFarmBoss then
+            PerformFastAttack()
+        end
+    end
+end)
+
+-- 🧠 LOGIC AUTO FARM LEVEL CHUẨN SEA 3 (TỰ ĐỌC LEVEL & NHẬN QUEST)
+task.spawn(function()
+    while task.wait(0.3) do
+        pcall(function()
+            if not getgenv().DragonHub.AutoFarmLevel then return end
+
+            local myLevel = LocalPlayer.Data.Level.Value
+            local questData = nil
+
+            -- Tự động phân loại quest dựa theo Level hiện tại của người chơi ở Sea 3
+            if myLevel >= 2550 then
+                questData = { Name = "TikiQuest3", Level = 2, Mon = "Skull Slayer", QuestPos = CFrame.new(-16661.89, 105.28, 1576.69), MonPos = CFrame.new(-16885.20, 114.12, 1627.94) }
+            elseif myLevel >= 2525 then
+                questData = { Name = "TikiQuest2", Level = 2, Mon = "Isle Champion", QuestPos = CFrame.new(-16539.07, 55.68, 1051.57), MonPos = CFrame.new(-16641.67, 235.78, 1031.28) }
+            elseif myLevel >= 2450 then
+                questData = { Name = "TikiQuest1", Level = 1, Mon = "Isle Outlaw", QuestPos = CFrame.new(-16547.74, 61.13, -173.41), MonPos = CFrame.new(-16442.81, 116.13, -264.46) }
+            elseif myLevel >= 2300 then
+                questData = { Name = "ChocQuest1", Level = 1, Mon = "Cocoa Warrior", QuestPos = CFrame.new(233.22, 29.87, -12201.23), MonPos = CFrame.new(-21.55, 80.57, -12352.38) }
+            else
+                -- Mặc định bãi quái cấp cao an toàn nếu level thấp hơn
+                questData = { Name = "PiratePortQuest", Level = 1, Mon = "Pirate Millionaire", QuestPos = CFrame.new(-290.07, 42.90, 5581.58), MonPos = CFrame.new(-245.99, 47.30, 5584.10) }
+            end
+
+            if questData and CommF_ then
+                local questGui = LocalPlayer.PlayerGui:FindFirstChild("Main") and LocalPlayer.PlayerGui.Main:FindFirstChild("Quest")
+                local hasActiveQuest = questGui and questGui.Visible
+
+                if not hasActiveQuest then
+                    if (LocalPlayer.Character.HumanoidRootPart.Position - questData.QuestPos.Position).Magnitude > 10 then
+                        TweenTo(questData.QuestPos)
+                    else
+                        CommF_:InvokeServer("AbandonQuest")
+                        CommF_:InvokeServer("StartQuest", questData.Name, questData.Level)
+                        task.wait(0.5)
+                    end
+                else
+                    -- Đang có quest -> Tìm quái tương ứng
+                    CheckAndEnableBuso()
+                    EquipSelectedWeapon()
+
+                    local enemies = Workspace:FindFirstChild("Enemies")
+                    local targetMob = nil
+                    if enemies then
+                        for _, m in ipairs(enemies:GetChildren()) do
+                            if m.Name == questData.Mon and m:FindFirstChild("HumanoidRootPart") and m:FindFirstChildOfClass("Humanoid") and m.Humanoid.Health > 0 then
+                                targetMob = m
+                                break
+                            end
+                        end
+                    end
+
+                    if targetMob then
+                        TweenTo(targetMob.HumanoidRootPart.CFrame * CFrame.new(0, getgenv().DragonHub.FarmDistance, 0))
+                        BringNearbyMobs(questData.Mon, targetMob.HumanoidRootPart.CFrame)
+                    else
+                        TweenTo(questData.MonPos * CFrame.new(0, 15, 0))
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Luồng Auto Farm Quái Chỉ Định & Boss
+task.spawn(function()
+    while task.wait(0.2) do
+        pcall(function()
+            if getgenv().DragonHub.AutoFarmLevel then return end -- Ưu tiên Level farm trước
+
+            if getgenv().DragonHub.AutoFarmMob then
+                local mobName = getgenv().DragonHub.SelectedMob
+                local mobData = MobDatabase[mobName]
+                local enemies = Workspace:FindFirstChild("Enemies")
+                local foundTarget = nil
+
+                if enemies then
+                    for _, m in ipairs(enemies:GetChildren()) do
+                        if m.Name == mobName and m:FindFirstChild("HumanoidRootPart") and m:FindFirstChildOfClass("Humanoid") and m.Humanoid.Health > 0 then
+                            foundTarget = m
+                            break
+                        end
+                    end
+                end
+
+                if foundTarget then
+                    CheckAndEnableBuso()
+                    EquipSelectedWeapon()
+                    TweenTo(foundTarget.HumanoidRootPart.CFrame * CFrame.new(0, getgenv().DragonHub.FarmDistance, 0))
+                    BringNearbyMobs(mobName, foundTarget.HumanoidRootPart.CFrame)
+                elseif mobData then
+                    TweenTo(mobData.Pos * CFrame.new(0, 25, 0))
+                end
+
+            elseif getgenv().DragonHub.AutoFarmBoss then
+                local bossName = getgenv().DragonHub.SelectedBoss
+                local bossDefaultPos = BossDatabase[bossName]
+                local enemies = Workspace:FindFirstChild("Enemies")
+                local foundBoss = nil
+
+                if enemies then
+                    for _, b in ipairs(enemies:GetChildren()) do
+                        if string.find(b.Name, bossName) and b:FindFirstChild("HumanoidRootPart") and b:FindFirstChildOfClass("Humanoid") and b.Humanoid.Health > 0 then
+                            foundBoss = b
+                            break
+                        end
+                    end
+                end
+
+                if foundBoss then
+                    CheckAndEnableBuso()
+                    EquipSelectedWeapon()
+                    TweenTo(foundBoss.HumanoidRootPart.CFrame * CFrame.new(0, getgenv().DragonHub.FarmDistance, 0))
+                elseif bossDefaultPos then
+                    TweenTo(bossDefaultPos * CFrame.new(0, 25, 0))
+                end
+            end
+        end)
+    end
+end)
+
+-- Luồng Sự Kiện, Thức Tỉnh, Trái Cây & ESP
+task.spawn(function()
+    while task.wait(0.8) do
+        pcall(function()
+            local cfg = getgenv().DragonHub
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+            if cfg.AutoRaceV3 and CommE then CommE:FireServer("ActivateAbility") end
+            if cfg.AutoAwakening then
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                local awk = (backpack and backpack:FindFirstChild("Awakening")) or (char and char:FindFirstChild("Awakening"))
+                if awk and awk:FindFirstChild("RemoteEvent") then awk.RemoteEvent:FireServer() end
+            end
+            if cfg.AutoDragonHunter and DragonHunterRF then DragonHunterRF:InvokeServer({ Context = "RequestQuest" }) end
+            if cfg.AutoDragonEmber then
+                if DragonDojoEmber then DragonDojoEmber:FireServer() end
+                if CollectedDragonEgg then CollectedDragonEgg:FireServer() end
+            end
+            if cfg.AutoKitsunePray then
+                if TouchKitsuneStatue then TouchKitsuneStatue:FireServer() end
+                if KitsuneStatuePrayRF then KitsuneStatuePrayRF:InvokeServer() end
+                if CollectBlueEmber then CollectBlueEmber:FireServer() end
+            end
+            if cfg.AutoCollectBerries and ClaimBerryRF then ClaimBerryRF:InvokeServer() end
+
+            if cfg.AutoGrabFruits and hrp then
+                for _, item in ipairs(Workspace:GetChildren()) do
+                    if item:IsA("Tool") and item:FindFirstChild("Handle") then item.Handle.CFrame = hrp.CFrame end
+                end
+            end
+
+            if cfg.AutoFirePrompts and hrp and fireproximityprompt then
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.Enabled then
+                        local parentPart = obj.Parent
+                        if parentPart and parentPart:IsA("BasePart") then
+                            if (parentPart.Position - hrp.Position).Magnitude <= obj.MaxActivationDistance + 5 then
+                                fireproximityprompt(obj)
+                            end
+                        end
+                    end
+                end
+            end
+
+            if CommF_ then
+                if cfg.AutoStatsMelee then CommF_:InvokeServer("AddPoint", "Melee", 3) end
+                if cfg.AutoStatsDefense then CommF_:InvokeServer("AddPoint", "Defense", 3) end
+                if cfg.AutoStatsSword then CommF_:InvokeServer("AddPoint", "Sword", 3) end
+                if cfg.AutoStatsGun then CommF_:InvokeServer("AddPoint", "Gun", 3) end
+                if cfg.AutoStatsFruit then CommF_:InvokeServer("AddPoint", "Demon Fruit", 3) end
+            end
+        end)
+    end
+end)
+
+Notify("DRAGON HUB", "Đã bật script thành công! Chúc bạn chơi game vui vẻ.", 4)
