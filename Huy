@@ -35,7 +35,7 @@ local Runtime = {
 	BossQuests = {},
 	PuzzleData = {},
 	Preferences = { Accent = "Ember" },
-	Version = "2.1.0",
+	Version = "2.2.0",
 }
 host.DragonHubSession = Runtime
 Runtime.Players = game:GetService("Players")
@@ -590,9 +590,14 @@ function Runtime:GetDiagnostics()
 		EnvironmentNote = self.EnvironmentNote,
 		Ready = self.Ready,
 		World = self.World,
+		WorldReason = self.WorldReason,
+		WorldEvidence = self.WorldEvidence,
 		Status = self.Status,
 		Controls = 0,
 		Bound = 0,
+		BoundActions = 0,
+		InfoRows = 0,
+		ActionCount = 0,
 		Active = 0,
 		ErrorCount = #self.Errors,
 		MissingBossQuests = next(self.BossQuests) == nil,
@@ -603,6 +608,14 @@ function Runtime:GetDiagnostics()
 		report.Controls = report.Controls + 1
 		if control.Bound then
 			report.Bound = report.Bound + 1
+		end
+		if control.Kind == "Paragraph" then
+			report.InfoRows = report.InfoRows + 1
+		else
+			report.ActionCount = report.ActionCount + 1
+			if control.Bound then
+				report.BoundActions = report.BoundActions + 1
+			end
 		end
 		if control.Kind == "Toggle" and control.Value then
 			report.Active = report.Active + 1
@@ -818,8 +831,197 @@ function Runtime:Path(root, ...)
 	return current
 end
 
+-- One world resolver for startup, gameplay branches and diagnostics.
+local knownPlaces = { [2753915549] = 1, [4442272183] = 2, [7449423635] = 3 }
+local function placeDetails()
+	local ok, value = nativePcall(function()
+		return game.PlaceId
+	end)
+	local raw = ok and value or nil
+	local id = tonumber(raw)
+	return raw, id
+end
+function Runtime:WorldSignals()
+	local raw, id = placeDetails()
+	local storage = game:GetService("ReplicatedStorage")
+	local data = self.Player:FindFirstChild("Data")
+	local remotes = storage:FindFirstChild("Remotes")
+	local comm = remotes and remotes:FindFirstChild("CommF_")
+	local enemies = self.Workspace:FindFirstChild("Enemies")
+	local map = self.Workspace:FindFirstChild("Map")
+	local origin = self.Workspace:FindFirstChild("_WorldOrigin")
+	local locations = origin and origin:FindFirstChild("Locations")
+	local evidence = {
+		RawPlaceId = tostring(raw),
+		PlaceId = id,
+		PlaceIdType = type(raw),
+		KnownWorld = knownPlaces[id],
+		BloxLike = data ~= nil and data:FindFirstChild("Level") ~= nil and comm ~= nil and enemies ~= nil,
+		Matches = {},
+		Candidates = {},
+	}
+	local mapNames, locationNames = {}, {}
+	for _, object in ipairs(map and map:GetChildren() or {}) do
+		mapNames[object.Name] = true
+	end
+	for _, object in ipairs(locations and locations:GetChildren() or {}) do
+		locationNames[object.Name] = true
+	end
+	local names = {
+		[3] = {
+			Map = {
+				"TikiOutpost",
+				"Turtle",
+				"Haunted Castle",
+				"Boat Castle",
+				"CakeLoaf",
+				"Waterfall",
+				"HydraIsland",
+				"PortTown",
+			},
+			Locations = {
+				"Tiki Outpost",
+				"Floating Turtle",
+				"Haunted Castle",
+				"Castle on the Sea",
+				"Great Tree",
+				"Hydra Island",
+				"Port Town",
+				"Submerged Island",
+			},
+		},
+		[2] = {
+			Map = { "DarkbeardArena", "CircleIsland", "Dressrosa", "GreenZone" },
+			Locations = {
+				"Kingdom of Rose",
+				"Green Zone",
+				"Cursed Ship",
+				"Ice Castle",
+				"Forgotten Island",
+				"Dark Arena",
+				"Hot and Cold",
+			},
+		},
+		[1] = {
+			Map = {},
+			Locations = {
+				"Pirate Starter",
+				"Marine Starter",
+				"Jungle",
+				"Marine Fortress",
+				"Magma Village",
+				"Fountain City",
+				"Skylands",
+				"Underwater City",
+			},
+		},
+	}
+	for world, sources in pairs(names) do
+		local found = {}
+		for _, name in ipairs(sources.Map) do
+			if mapNames[name] then
+				found[#found + 1] = "Map." .. name
+			end
+		end
+		for _, name in ipairs(sources.Locations) do
+			if locationNames[name] then
+				found[#found + 1] = "Locations." .. name
+			end
+		end
+		if world == 1 and mapNames.Jungle and (mapNames.Desert or mapNames.PirateStarter or mapNames.MarineStarter) then
+			found[#found + 1] = "Map.Jungle + Starter/Desert"
+		end
+		if #found > 0 then
+			evidence.Matches[world] = found
+			evidence.Candidates[#evidence.Candidates + 1] = world
+		end
+	end
+	-- The real game HUD exposes lines like "v30.1.1 | Sea 3: <job>".
+	-- Only accept that complete version/Sea format under PlayerGui.Main and
+	-- never inspect Dragon Hub's own labels. This is not a level-based guess.
+	local main = self:Path(self.Player, "PlayerGui", "Main")
+	for _, object in ipairs(main and main:GetDescendants() or {}) do
+		if object:IsA("TextLabel") then
+			local ours = false
+			local ancestor = object
+			while ancestor do
+				if ancestor == self.Gui then
+					ours = true
+					break
+				end
+				ancestor = ancestor.Parent
+			end
+			if not ours then
+				local value = tostring(object.Text or "")
+				local lowered = string.lower(value)
+				local world = tonumber(string.match(lowered, "sea%s*([123])%s*:"))
+				if #value <= 180 and string.match(lowered, "^%s*v%d+%.%d+") and world then
+					if not evidence.Matches[world] then
+						evidence.Matches[world] = {}
+						evidence.Candidates[#evidence.Candidates + 1] = world
+					end
+					evidence.Matches[world][#evidence.Matches[world] + 1] = "HUD: " .. value
+				end
+			end
+		end
+	end
+	table.sort(evidence.Candidates)
+	self.WorldEvidence = evidence
+	return evidence
+end
+function Runtime:DetectWorld()
+	local e = self:WorldSignals()
+	if e.KnownWorld then
+		return e.KnownWorld, "PlaceId chuẩn: " .. e.RawPlaceId
+	end
+	if not e.BloxLike then
+		return nil,
+			"Chưa đủ dữ liệu nhận diện Blox Fruits (Data.Level / Remotes.CommF_ / Enemies); PlaceId="
+				.. e.RawPlaceId
+				.. " ("
+				.. e.PlaceIdType
+				.. ")"
+	end
+	if self.WorldOverride then
+		return self.WorldOverride, "Sea do người dùng chọn; PlaceId=" .. e.RawPlaceId
+	end
+	if #e.Candidates == 1 then
+		local world = e.Candidates[1]
+		return world, "Nhận diện từ " .. table.concat(e.Matches[world], ", ") .. "; PlaceId=" .. e.RawPlaceId
+	end
+	if #e.Candidates > 1 then
+		return nil, "Dấu hiệu Sea mâu thuẫn; chọn đúng Sea trong Tổng quan. PlaceId=" .. e.RawPlaceId
+	end
+	return nil,
+		"Đã thấy dữ liệu Blox Fruits, đang chờ map/Locations để nhận diện Sea. Có thể chọn Sea trong Tổng quan. PlaceId="
+			.. e.RawPlaceId
+end
+function Runtime:SetWorldOverride(world)
+	world = tonumber(world)
+	assert(world == 1 or world == 2 or world == 3, "Sea phải là 1, 2 hoặc 3")
+	local e = self:WorldSignals()
+	assert(
+		e.BloxLike,
+		"Chưa thấy đủ dữ liệu Blox Fruits; không bật nhánh game trên nơi không xác định."
+	)
+	assert(
+		not e.KnownWorld or e.KnownWorld == world,
+		"PlaceId chuẩn xác định Sea " .. tostring(e.KnownWorld) .. "; không thể chọn Sea khác."
+	)
+	self.WorldOverride = world
+	self:StartBackend()
+end
+function Runtime:IsWorldPlace(place)
+	local target = knownPlaces[tonumber(place)]
+	if target then
+		return self.World == target
+	end
+	local _, actual = placeDetails()
+	return actual ~= nil and actual == tonumber(place)
+end
+
 -- Startup isolation and explicit states for executors with partial API support.
-Runtime.Version = "2.1.0"
+Runtime.Version = "2.2.0"
 Runtime.BootTimeout = 30
 Runtime.DependencyTimeout = 15
 Runtime.PendingValues = {}
@@ -875,16 +1077,20 @@ function Runtime:BootStep(label, callback, ...)
 	return unpackValues(result, 2, result.n)
 end
 function Runtime:AwaitCore()
-	self.World = ({ [2753915549] = 1, [4442272183] = 2, [7449423635] = 3 })[game.PlaceId]
-	assert(self.World, "Hãy vào Blox Fruits Sea 1, 2 hoặc 3 trước khi bật chức năng.")
+	self.World = nil
+	self.WorldReason = nil
 	local storage = game:GetService("ReplicatedStorage")
 	local deadline = os.clock() + self.DependencyTimeout
 	repeat
+		local world, reason = self:DetectWorld()
+		self.World = world
+		self.WorldReason = reason
 		local player = self.Player
 		local character = player.Character
 		local data = player:FindFirstChild("Data")
 		local remotes = storage:FindFirstChild("Remotes")
 		local checks = {
+			{ self.World, "Sea: " .. tostring(self.WorldReason) },
 			{ character, "Character" },
 			{ character and character:FindFirstChild("Humanoid"), "Character.Humanoid" },
 			{ character and character:FindFirstChild("HumanoidRootPart"), "Character.HumanoidRootPart" },
@@ -1440,6 +1646,25 @@ local AuroraUI = (function()
 			cap.LayoutOrder = -1
 			return frame
 		end
+		local picker = homeBlock("Chọn Sea đang chơi nếu chưa tự nhận diện", 0)
+		self.WorldPicker = picker
+		picker.Visible = false
+		local explanation = label(
+			picker,
+			"Chỉ dùng khi đã vào Blox Fruits. Chọn đúng Sea theo game; không chọn theo level.",
+			11,
+			palette.warning
+		)
+		explanation.AutomaticSize = Enum.AutomaticSize.Y
+		explanation.Size = UDim2.new(1, 0, 0, 0)
+		for number = 1, 3 do
+			local selected = number
+			local choice = button(picker, "Đang ở Sea " .. tostring(number))
+			choice.Size = UDim2.new(1, 0, 0, 32)
+			Runtime:Connect(choice.Activated, function()
+				Runtime:SetWorldOverride(selected)
+			end, "ui")
+		end
 		local session = homeBlock("Phiên hiện tại", 2)
 		self.SessionText = label(session, "Đang đọc nhân vật…", 12, palette.muted)
 		self.SessionText.AutomaticSize = Enum.AutomaticSize.Y
@@ -1905,7 +2130,7 @@ local AuroraUI = (function()
 		local level = data and data:FindFirstChild("Level")
 		local character = player.Character
 		local humanoid = character and character:FindFirstChild("Humanoid")
-		local sea = report.World and "Sea " .. tostring(report.World) or "Ngoài Blox Fruits"
+		local sea = report.World and "Sea " .. tostring(report.World) or "Chưa xác định Sea"
 		self.ServerBadge.Text = "v" .. Runtime.Version .. "  /  " .. sea
 		local lines = {
 			"Người chơi: " .. player.Name,
@@ -1919,7 +2144,21 @@ local AuroraUI = (function()
 				.. tostring(#self.TabList)
 				.. " nhóm chức năng",
 		}
+		lines[#lines + 1] = "Callback thật: "
+			.. tostring(report.BoundActions)
+			.. " / "
+			.. tostring(report.ActionCount)
+			.. " · Ô thông tin: "
+			.. tostring(report.InfoRows)
+		lines[#lines + 1] = "PlaceId: "
+			.. tostring((report.WorldEvidence or {}).RawPlaceId or game.PlaceId)
+			.. " · "
+			.. tostring((report.WorldEvidence or {}).PlaceIdType or type(game.PlaceId))
+		lines[#lines + 1] = tostring(report.WorldReason or "Đang nhận diện Sea")
 		self.SessionText.Text = table.concat(lines, "\n")
+		if self.WorldPicker then
+			self.WorldPicker.Visible = not Runtime.World and (Runtime.WorldEvidence or {}).BloxLike == true
+		end
 		local capabilities = {}
 		for _, name in ipairs({
 			"loadstring",
@@ -8465,9 +8704,8 @@ Runtime.Bootstrap = function(Runtime, ...)
 		DoneSkillFruit, DoneSkillGun, DoneSkillMelee, DoneSkillSword = false, false, false, false
 	end
 	Runtime.ResetBackendState()
-	World1, World2, World3 = false, false, false
-	Runtime.World = ({ [2753915549] = 1, [4442272183] = 2, [7449423635] = 3 })[game.PlaceId]
-	assert(Runtime.World, "Hãy mở Dragon Hub trong Blox Fruits (Sea 1, 2 hoặc 3).")
+	assert(Runtime.World, "Chưa xác định được Sea; xem Tổng quan và Nhật ký.")
+	World1, World2, World3 = Runtime.World == 1, Runtime.World == 2, Runtime.World == 3
 	local V = AuroraUI
 	local M = V:CreateWindow({
 		Title = "Aurora Hub",
@@ -8662,14 +8900,8 @@ Runtime.Bootstrap = function(Runtime, ...)
 	Runtime:BootStep("dòng nguồn 135", function()
 		_G.AttackAura = false
 	end)
-	Runtime:BootStep("dòng nguồn 136", function()
-		if game.PlaceId == 2753915549 then
-			World1 = true
-		elseif game.PlaceId == 4442272183 then
-			World2 = true
-		elseif game.PlaceId == 7449423635 then
-			World3 = true
-		end
+	Runtime:BootStep("dòng nguồn 1", function()
+		World1, World2, World3 = Runtime.World == 1, Runtime.World == 2, Runtime.World == 3
 	end)
 	Runtime:BootStep("dòng nguồn 143", function()
 		Workspace = game:GetService("Workspace")
@@ -16590,7 +16822,7 @@ Runtime.Bootstrap = function(Runtime, ...)
 			end
 		else
 			local V, M, o = DetectRequestSoulGuitar()
-			if game.PlaceId == M then
+			if Runtime:IsWorldPlace(M) then
 				if not DetectMob(V) then
 					TeleportSpawnMob(V, _G.AutoSoulGuitar)
 				else
@@ -23593,4 +23825,4 @@ Runtime.UI = AuroraUI
 Runtime.Manifest = FEATURE_MANIFEST
 Runtime:StartBackend()
 return Runtime
--- DRAGON_HUB_COMPLETE_V2_1
+-- DRAGON_HUB_COMPLETE_V2_2
